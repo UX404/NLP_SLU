@@ -24,8 +24,8 @@ start_time = time.time()
 train_path = os.path.join(args.dataroot, 'train.json')
 dev_path = os.path.join(args.dataroot, 'development.json')
 Example.configuration(args.dataroot, train_path=train_path, word2vec_path=args.word2vec_path)
-train_dataset = Example.load_dataset(train_path)
-dev_dataset = Example.load_dataset(dev_path)
+train_dataset, train_pre_dataset = Example.load_dataset(train_path, pre_data=True)
+dev_dataset, dev_pre_dataset = Example.load_dataset(dev_path, pre_data=True)
 print("Load dataset and database finished, cost %.4fs ..." % (time.time() - start_time))
 print("Dataset size: train -> %d ; dev -> %d" % (len(train_dataset), len(dev_dataset)))
 
@@ -50,13 +50,15 @@ def decode(choice):
     assert choice in ['train', 'dev']
     model.eval()
     dataset = train_dataset if choice == 'train' else dev_dataset
+    pre_dataset = train_pre_dataset if choice == 'train' else dev_pre_dataset
     predictions, labels = [], []
     total_loss, count = 0, 0
     with torch.no_grad():
         for i in range(0, len(dataset), args.batch_size):
             cur_dataset = dataset[i: i + args.batch_size]
-            current_batch = from_example_list(args, cur_dataset, device, train=True)
-            pred, label, loss = model.decode(Example.label_vocab, current_batch)
+            cur_pre_dataset = pre_dataset[i: i + args.batch_size]
+            current_batch, current_pre_batch = from_example_list(args, cur_dataset, cur_pre_dataset, device, train=True)
+            pred, label, loss = model.decode(Example.label_vocab, current_batch, current_pre_batch)
             predictions.extend(pred)
             labels.extend(label)
             total_loss += loss
@@ -82,8 +84,10 @@ if not args.testing:
         count = 0
         for j in range(0, nsamples, step_size):
             cur_dataset = [train_dataset[k] for k in train_index[j: j + step_size]]
-            current_batch = from_example_list(args, cur_dataset, device, train=True)
-            output, loss = model(current_batch)
+            cur_pre_dataset = [train_pre_dataset[k] for k in train_index[j: j + step_size]]
+            current_batch, current_pre_batch = from_example_list(args, cur_dataset, cur_pre_dataset, device, train=True)
+            # current_pre_batch = from_example_list(args, cur_pre_dataset, device, train=True)
+            output, loss = model(current_batch, current_pre_batch)
             epoch_loss += loss.item()
             loss.backward()
             optimizer.step()
