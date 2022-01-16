@@ -15,24 +15,32 @@ class SLUTagging(nn.Module):
         self.rnn = getattr(nn, self.cell)(config.embed_size + 48, config.hidden_size // 2, num_layers=config.num_layer, bidirectional=True, batch_first=True)
         self.dropout_layer = nn.Dropout(p=config.dropout)
         self.output_layer = TaggingFNNDecoder(config.hidden_size, config.num_tags, config.tag_pad_idx)
+        self.freq_layer = FreqFNN(config.embed_size)
 
     def forward(self, batch):
         tag_ids = batch.tag_ids
         tag_mask = batch.tag_mask
         input_ids = batch.input_ids
+        input_freq = batch.input_freq
         lengths = batch.lengths
 
         embed = self.word_embed(input_ids)
         
-        embed = torch.cat((embed, torch.from_numpy(batch.one_hot.astype(np.float32))), 2) 
+        most_freq, freq_loss = self.freq_layer(embed, input_freq)
 
+        mask = torch.ones_like(embed, requires_grad=False)
+        mask[torch.arange(embed.shape[0]), most_freq] = 0
+        mask[torch.rand(embed.shape[0]) > 0.02] = 1
+        embed = embed * mask
+
+        embed = torch.cat((embed, torch.from_numpy(batch.one_hot.astype(np.float32)).to(self.config.device)), 2) 
+        
         packed_inputs = rnn_utils.pack_padded_sequence(embed, lengths, batch_first=True, enforce_sorted=False)
         packed_rnn_out, h_t_c_t = self.rnn(packed_inputs)  # bsize x seqlen x dim
         rnn_out, unpacked_len = rnn_utils.pad_packed_sequence(packed_rnn_out, batch_first=True)
         hiddens = self.dropout_layer(rnn_out)
         tag_output = self.output_layer(hiddens, tag_mask, tag_ids)
-        # import pdb;pdb.set_trace()
-        return tag_output
+        return tag_output[0], tag_output[1] + freq_loss
 
     def decode(self, label_vocab, batch):
         batch_size = len(batch)
@@ -82,3 +90,24 @@ class TaggingFNNDecoder(nn.Module):
             loss = self.loss_fct(logits.view(-1, logits.shape[-1]), labels.view(-1))
             return prob, loss
         return prob
+
+class FreqFNN(nn.Module):
+
+    def __init__(self, embed_size):
+        super(FreqFNN, self).__init__()
+        self.freq_net = nn.Sequential(
+            nn.Linear(embed_size, embed_size),
+            nn.ReLU(),
+            nn.Linear(embed_size, 1),
+        )
+        self.output_layer = nn.Softmax()
+        self.loss_fct = nn.CrossEntropyLoss()
+
+    def forward(self, embed, freq=None):
+        output = self.freq_net(embed).squeeze(-1)
+        prob = torch.softmax(output, dim=-1)
+        most_freq = prob.argmax(dim=1)
+        if freq is not None:
+            loss = self.loss_fct(prob, freq)
+            return most_freq, loss
+        return most_freq
