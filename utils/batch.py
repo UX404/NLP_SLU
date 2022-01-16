@@ -18,9 +18,11 @@ def from_example_list(args, ex_list, pre_ex_list, device='cpu', train=True):
     max_len = max(max(input_lens), max(pre_input_lens))
 
     input_ids = [ex.input_idx + [pad_idx] * (max_len - len(ex.input_idx)) for ex in ex_list]
+    input_freq = [ex.input_freq for ex in ex_list]
     pre_input_ids = [pre_ex.input_idx + [pad_idx] * (max_len - len(pre_ex.input_idx)) for pre_ex in pre_ex_list]
 
     batch.input_ids = torch.tensor(input_ids, dtype=torch.long, device=device)
+    batch.input_freq = torch.tensor(input_freq, dtype=torch.long, device=device)
     batch.lengths = input_lens
 
     pre_batch.input_ids = torch.tensor(pre_input_ids, dtype=torch.long, device=device)

@@ -58,7 +58,7 @@ def decode(choice):
             cur_dataset = dataset[i: i + args.batch_size]
             cur_pre_dataset = pre_dataset[i: i + args.batch_size]
             current_batch, current_pre_batch = from_example_list(args, cur_dataset, cur_pre_dataset, device, train=True)
-            pred, label, loss = model.decode(Example.label_vocab, current_batch, current_pre_batch)
+            pred, label, loss = model.decode(Example.label_vocab, current_batch)
             predictions.extend(pred)
             labels.extend(label)
             total_loss += loss
@@ -87,7 +87,7 @@ if not args.testing:
             cur_pre_dataset = [train_pre_dataset[k] for k in train_index[j: j + step_size]]
             current_batch, current_pre_batch = from_example_list(args, cur_dataset, cur_pre_dataset, device, train=True)
             # current_pre_batch = from_example_list(args, cur_pre_dataset, device, train=True)
-            output, loss = model(current_batch, current_pre_batch)
+            output, loss = model(current_batch)
             epoch_loss += loss.item()
             loss.backward()
             optimizer.step()
