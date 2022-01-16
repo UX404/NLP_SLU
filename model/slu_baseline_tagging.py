@@ -5,7 +5,7 @@ import torch.nn.utils.rnn as rnn_utils
 
 
 class InverseMultiHeadAttention(nn.Module):
-    def __init__(self, input_size, dropout_rate=0.5, num_heads=8):
+    def __init__(self, input_size, dropout_rate=0.5, num_heads=1):
         super(InverseMultiHeadAttention, self).__init__()
         self.num_heads = num_heads
 
@@ -65,9 +65,15 @@ class SLUTagging(nn.Module):
         self.output_layer = TaggingFNNDecoder(config.hidden_size, config.num_tags, config.tag_pad_idx)
         self.freq_layer = FreqFNN(config.embed_size)
 
-        self.attention = InverseMultiHeadAttention(config.hidden_size, config.dropout)
+        self.attention = InverseMultiHeadAttention(config.hidden_size, 0.05)
         self.attention_norm_1 = nn.LayerNorm(config.hidden_size, eps=1e-6)
         self.attention_norm_2 = nn.LayerNorm(config.hidden_size, eps=1e-6)
+
+        self.att_fnn = nn.Sequential(
+            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.ReLU(),
+            nn.Linear(config.hidden_size, config.hidden_size),
+        )
 
     def forward(self, batch, pre_batch):
         tag_ids = batch.tag_ids
@@ -95,18 +101,28 @@ class SLUTagging(nn.Module):
         rnn_out, unpacked_len = rnn_utils.pad_packed_sequence(packed_rnn_out, batch_first=True)
 
         pre_embed = self.word_embed(pre_input_ids)
+
+        # pre_embed = pre_embed.detach()
         pre_packed_inputs = rnn_utils.pack_padded_sequence(pre_embed, lengths, batch_first=True, enforce_sorted=False)
         pre_packed_rnn_out, pre_h_t_c_t = self.rnn(pre_packed_inputs)  # bsize x seqlen x dim
         pre_rnn_out, pre_unpacked_len = rnn_utils.pad_packed_sequence(pre_packed_rnn_out, batch_first=True)
         
-        norm_rnn_out = self.attention_norm_1(rnn_out)
-        pre_rnn_out = self.attention_norm_2(pre_rnn_out)
+        # pre_rnn_out = pre_rnn_out.detach()
 
-        rnn_out = rnn_out + self.attention(pre_rnn_out, norm_rnn_out, norm_rnn_out)
-        # rnn_out = self.attention_norm(rnn_out)
+        norm_rnn_out = self.attention_norm_1(rnn_out)
+
+        pre_rnn_out = self.attention_norm_1(pre_rnn_out)
+        # pre_rnn_out.detach()
+
+        rnn_out = rnn_out + 0.1 * self.attention(pre_rnn_out, norm_rnn_out, norm_rnn_out)
+        # rnn_out = self.attention_norm_2(rnn_out)
+
+        # rnn_out = rnn_out + self.att_fnn(rnn_out)
 
         hiddens = self.dropout_layer(rnn_out)
         tag_output = self.output_layer(hiddens, tag_mask, tag_ids)
+
+        # return tag_output
         return tag_output[0], tag_output[1] + freq_loss
 
     def decode(self, label_vocab, batch, pre_batch):
