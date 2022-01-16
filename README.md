@@ -1,5 +1,7 @@
 ### 创建环境
 
+注意需要安装jieba库
+
     conda create -n slu python=3.6
     source activate slu
     pip install torch==1.7.1
