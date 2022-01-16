@@ -12,6 +12,8 @@ from utils.batch import from_example_list
 from utils.vocab import PAD
 from model.slu_baseline_tagging import SLUTagging
 
+# import json
+
 # initialization params, output path, logger, random seed and torch.device
 args = init_args(sys.argv[1:])
 set_random_seed(args.seed)
@@ -34,6 +36,43 @@ args.pad_idx = Example.word_vocab[PAD]
 args.num_tags = Example.label_vocab.num_tags
 args.tag_pad_idx = Example.label_vocab.convert_tag_to_idx(PAD)
 
+# seg_dict = dict()
+# for exp in train_dataset:
+#     for w in exp.words:
+#         seg_dict[w.flag] = 1
+# seg_idx_dict = dict(zip(list(seg_dict.keys()) + ['un'], list(range(len(seg_dict) + 1))))
+# with open('seg_idx_list.json', 'w') as f:
+#     json.dump(list(seg_dict.keys()) + ['un'], f)
+# print('json saved')
+
+# def get_seg_id_dict():
+#     return seg_idx_dict
+
+# def to_1h(id, maxl):
+#     x = np.zeros(maxl)
+#     x[id] = 1
+#     return x
+
+# for exp in train_dataset:
+#     exp.one_hot = []
+#     for w in exp.words:
+#         for _ in range(len(w.word)):
+#             exp.one_hot.append(to_1h(seg_idx_dict[w.flag] if w.flag in seg_idx_dict.keys() else seg_idx_dict['un'], len(seg_idx_dict)))
+# for exp in train_pre_dataset:
+#     exp.one_hot = []
+#     for w in exp.words:
+#         for _ in range(len(w.word)):
+#             exp.one_hot.append(to_1h(seg_idx_dict[w.flag] if w.flag in seg_idx_dict.keys() else seg_idx_dict['un'], len(seg_idx_dict)))
+# for exp in dev_dataset:
+#     exp.one_hot = []
+#     for w in exp.words:
+#         for _ in range(len(w.word)):
+#             exp.one_hot.append(to_1h(seg_idx_dict[w.flag] if w.flag in seg_idx_dict.keys() else seg_idx_dict['un'], len(seg_idx_dict)))
+# for exp in dev_pre_dataset:
+#     exp.one_hot = []
+#     for w in exp.words:
+#         for _ in range(len(w.word)):
+#             exp.one_hot.append(to_1h(seg_idx_dict[w.flag] if w.flag in seg_idx_dict.keys() else seg_idx_dict['un'], len(seg_idx_dict)))
 
 model = SLUTagging(args).to(device)
 Example.word2vec.load_embeddings(model.word_embed, Example.word_vocab, device=device)
@@ -58,7 +97,7 @@ def decode(choice):
             cur_dataset = dataset[i: i + args.batch_size]
             cur_pre_dataset = pre_dataset[i: i + args.batch_size]
             current_batch, current_pre_batch = from_example_list(args, cur_dataset, cur_pre_dataset, device, train=True)
-            pred, label, loss = model.decode(Example.label_vocab, current_batch, current_pre_batch)
+            pred, label, loss = model.decode(Example.label_vocab, current_batch)
             predictions.extend(pred)
             labels.extend(label)
             total_loss += loss
@@ -87,7 +126,7 @@ if not args.testing:
             cur_pre_dataset = [train_pre_dataset[k] for k in train_index[j: j + step_size]]
             current_batch, current_pre_batch = from_example_list(args, cur_dataset, cur_pre_dataset, device, train=True)
             # current_pre_batch = from_example_list(args, cur_pre_dataset, device, train=True)
-            output, loss = model(current_batch, current_pre_batch)
+            output, loss = model(current_batch)
             epoch_loss += loss.item()
             loss.backward()
             optimizer.step()

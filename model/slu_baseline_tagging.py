@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
 
+import numpy as np
 
 class SLUTagging(nn.Module):
 
@@ -11,7 +12,7 @@ class SLUTagging(nn.Module):
         self.config = config
         self.cell = config.encoder_cell
         self.word_embed = nn.Embedding(config.vocab_size, config.embed_size, padding_idx=0)
-        self.rnn = getattr(nn, self.cell)(config.embed_size, config.hidden_size // 2, num_layers=config.num_layer, bidirectional=True, batch_first=True)
+        self.rnn = getattr(nn, self.cell)(config.embed_size + 48, config.hidden_size // 2, num_layers=config.num_layer, bidirectional=True, batch_first=True)
         self.dropout_layer = nn.Dropout(p=config.dropout)
         self.output_layer = TaggingFNNDecoder(config.hidden_size, config.num_tags, config.tag_pad_idx)
 
@@ -22,12 +23,15 @@ class SLUTagging(nn.Module):
         lengths = batch.lengths
 
         embed = self.word_embed(input_ids)
-        packed_inputs = rnn_utils.pack_padded_sequence(embed, lengths, batch_first=True)
+        
+        embed = torch.cat((embed, torch.from_numpy(batch.one_hot.astype(np.float32))), 2) 
+
+        packed_inputs = rnn_utils.pack_padded_sequence(embed, lengths, batch_first=True, enforce_sorted=False)
         packed_rnn_out, h_t_c_t = self.rnn(packed_inputs)  # bsize x seqlen x dim
         rnn_out, unpacked_len = rnn_utils.pad_packed_sequence(packed_rnn_out, batch_first=True)
         hiddens = self.dropout_layer(rnn_out)
         tag_output = self.output_layer(hiddens, tag_mask, tag_ids)
-
+        # import pdb;pdb.set_trace()
         return tag_output
 
     def decode(self, label_vocab, batch):

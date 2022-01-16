@@ -1,6 +1,7 @@
 #-*- coding:utf-8 -*-
 import torch
-
+import numpy as np
+from utils.example import seg_idx_dict
 
 def from_example_list(args, ex_list, pre_ex_list, device='cpu', train=True):
     # ex_list = sorted(ex_list, key=lambda x: len(x.input_idx), reverse=True)
@@ -19,6 +20,46 @@ def from_example_list(args, ex_list, pre_ex_list, device='cpu', train=True):
 
     input_ids = [ex.input_idx + [pad_idx] * (max_len - len(ex.input_idx)) for ex in ex_list]
     pre_input_ids = [pre_ex.input_idx + [pad_idx] * (max_len - len(pre_ex.input_idx)) for pre_ex in pre_ex_list]
+
+    ex_1h = []
+    for ex in ex_list:
+        # print(f'len-{len(ex.one_hot)}')
+        # print(max_len - len(ex.input_idx))
+        tmp = ex.one_hot + (max_len - len(ex.input_idx)) * [np.zeros(len(seg_idx_dict))]
+        # ex.one_hot = np.array(ex.one_hot)
+        ex_1h.append(tmp)
+    batch.one_hot = np.array(ex_1h).astype(np.float32)
+    pre_ex_1h = []
+    for ex in pre_ex_list:
+        tmp = ex.one_hot + (max_len - len(ex.input_idx)) * [np.zeros(len(seg_idx_dict))]
+        # ex.one_hot = np.array(ex.one_hot)
+        pre_ex_1h.append(tmp)
+    pre_batch.one_hot = np.array(pre_ex_1h).astype(np.float32)
+
+    # ex_1h = None
+    # for ex in ex_list:
+    #     # print(f'len-{len(ex.one_hot)}')
+    #     # print(max_len - len(ex.input_idx))
+    #     tmp = np.concatenate((np.array(ex.one_hot).astype(np.float32), np.zeros((max_len - len(ex.input_idx), len(seg_idx_dict))).astype(np.float32)),axis=0)
+    #     # ex.one_hot = np.array(ex.one_hot)
+    #     if ex_1h is None:
+    #         ex_1h = tmp.reshape(1,tmp.shape[0], tmp.shape[1])
+    #     else:
+    #         # print(ex_1h.shape)
+    #         # print(ex.one_hot.shape)
+    #         ex_1h = np.concatenate((ex_1h, tmp.reshape(1,tmp.shape[0], tmp.shape[1])), axis=0)
+    # batch.one_hot = ex_1h.astype(np.float32)
+    # pre_ex_1h = None
+    # for ex in pre_ex_list:
+    #     tmp = np.concatenate((np.array(ex.one_hot).astype(np.float32), np.zeros((max_len - len(ex.input_idx), len(seg_idx_dict))).astype(np.float32)),axis=0)
+    #     # ex.one_hot = np.array(ex.one_hot)
+    #     if pre_ex_1h is None:
+    #         pre_ex_1h = tmp.reshape(1,tmp.shape[0], tmp.shape[1])
+    #     else:
+    #         # print(ex_1h.shape)
+    #         # print(ex.one_hot.shape)
+    #         pre_ex_1h = np.concatenate((pre_ex_1h, tmp.reshape(1,tmp.shape[0], tmp.shape[1])), axis=0)
+    # pre_batch.one_hot = pre_ex_1h.astype(np.float32)
 
     batch.input_ids = torch.tensor(input_ids, dtype=torch.long, device=device)
     batch.lengths = input_lens
