@@ -1,6 +1,7 @@
 #-*- coding:utf-8 -*-
 import torch
-
+import numpy as np
+from utils.example import seg_idx_dict
 
 def from_example_list(args, ex_list, pre_ex_list, device='cpu', train=True):
     # ex_list = sorted(ex_list, key=lambda x: len(x.input_idx), reverse=True)
@@ -20,6 +21,21 @@ def from_example_list(args, ex_list, pre_ex_list, device='cpu', train=True):
     input_ids = [ex.input_idx + [pad_idx] * (max_len - len(ex.input_idx)) for ex in ex_list]
     input_freq = [ex.input_freq for ex in ex_list]
     pre_input_ids = [pre_ex.input_idx + [pad_idx] * (max_len - len(pre_ex.input_idx)) for pre_ex in pre_ex_list]
+
+    ex_1h = []
+    for ex in ex_list:
+        # print(f'len-{len(ex.one_hot)}')
+        # print(max_len - len(ex.input_idx))
+        tmp = ex.one_hot + (max_len - len(ex.input_idx)) * [np.zeros(len(seg_idx_dict))]
+        # ex.one_hot = np.array(ex.one_hot)
+        ex_1h.append(tmp)
+    batch.one_hot = np.array(ex_1h).astype(np.float32)
+    pre_ex_1h = []
+    for ex in pre_ex_list:
+        tmp = ex.one_hot + (max_len - len(ex.input_idx)) * [np.zeros(len(seg_idx_dict))]
+        # ex.one_hot = np.array(ex.one_hot)
+        pre_ex_1h.append(tmp)
+    pre_batch.one_hot = np.array(pre_ex_1h).astype(np.float32)
 
     batch.input_ids = torch.tensor(input_ids, dtype=torch.long, device=device)
     batch.input_freq = torch.tensor(input_freq, dtype=torch.long, device=device)

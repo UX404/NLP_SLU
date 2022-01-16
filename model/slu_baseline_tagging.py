@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
 
+import numpy as np
 
 class InverseMultiHeadAttention(nn.Module):
     def __init__(self, input_size, dropout_rate=0.5, num_heads=1):
@@ -60,7 +61,7 @@ class SLUTagging(nn.Module):
         self.config = config
         self.cell = config.encoder_cell
         self.word_embed = nn.Embedding(config.vocab_size, config.embed_size, padding_idx=0)
-        self.rnn = getattr(nn, self.cell)(config.embed_size, config.hidden_size // 2, num_layers=config.num_layer, bidirectional=True, batch_first=True)
+        self.rnn = getattr(nn, self.cell)(config.embed_size + 48, config.hidden_size // 2, num_layers=config.num_layer, bidirectional=True, batch_first=True)
         self.dropout_layer = nn.Dropout(p=config.dropout)
         self.output_layer = TaggingFNNDecoder(config.hidden_size, config.num_tags, config.tag_pad_idx)
         self.freq_layer = FreqFNN(config.embed_size)
@@ -90,17 +91,20 @@ class SLUTagging(nn.Module):
         embed = self.word_embed(input_ids)
 
         most_freq, freq_loss = self.freq_layer(embed, input_freq)
-
+        embed = torch.cat((embed, torch.from_numpy(batch.one_hot.astype(np.float32)).to(self.config.device)), 2) 
+        
         mask = torch.ones_like(embed, requires_grad=False)
         mask[torch.arange(embed.shape[0]), most_freq] = 0
         mask[torch.rand(embed.shape[0]) > 0.02] = 1
         embed = embed * mask
-
+        
+        
         packed_inputs = rnn_utils.pack_padded_sequence(embed, lengths, batch_first=True, enforce_sorted=False)
         packed_rnn_out, h_t_c_t = self.rnn(packed_inputs)  # bsize x seqlen x dim
         rnn_out, unpacked_len = rnn_utils.pad_packed_sequence(packed_rnn_out, batch_first=True)
 
         pre_embed = self.word_embed(pre_input_ids)
+        pre_embed = torch.cat((pre_embed, torch.from_numpy(pre_batch.one_hot.astype(np.float32)).to(self.config.device)), 2) 
 
         # pre_embed = pre_embed.detach()
         pre_packed_inputs = rnn_utils.pack_padded_sequence(pre_embed, lengths, batch_first=True, enforce_sorted=False)
