@@ -1,9 +1,13 @@
 import json
+import numpy as np
 
 from utils.vocab import Vocab, LabelVocab
 from utils.word2vec import Word2vecUtils
 from utils.evaluator import Evaluator
+from collections import Counter
 
+poi_list = open('./data/lexicon/poi_name.txt', 'r', encoding='utf-8').read().replace('\n', '')
+freq_dict = Counter(poi_list)
 
 dummy_ex = {
             "utt_id": 0,
@@ -69,5 +73,6 @@ class Example():
                 self.tags[bidx] = f'B-{slot}'
         self.slotvalue = [f'{slot}-{value}' for slot, value in self.slot.items()]
         self.input_idx = [Example.word_vocab[c] for c in self.utt]
+        self.input_freq = np.argmax(np.array([freq_dict[c] if c in freq_dict else 0 for c in self.utt]))
         l = Example.label_vocab
         self.tag_id = [l.convert_tag_to_idx(tag) for tag in self.tags]
